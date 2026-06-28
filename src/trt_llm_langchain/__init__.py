@@ -1,9 +1,10 @@
 """trt-llm-langchain — use TensorRT-LLM models from LangChain.
 
-Sprint 1 ships the control-plane manager (model load/unload/status). ``ChatTrtLlm`` arrives in
-Sprint 2.
+``ChatTrtLlm`` is a call-site drop-in for ``ChatAnthropic``/``ChatOpenAI`` backed by a local
+TensorRT-LLM server, with lazy model load/unload via :class:`TrtLlmManager`.
 """
 
+from .chat import ChatTrtLlm
 from .config import TrtLlmSettings
 from .errors import (
     ModelLoadError,
@@ -15,6 +16,7 @@ from .errors import (
 from .manager import ModelInfo, TrtLlmManager
 
 __all__ = [
+    "ChatTrtLlm",
     "TrtLlmSettings",
     "TrtLlmManager",
     "ModelInfo",
