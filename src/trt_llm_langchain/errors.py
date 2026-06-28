@@ -40,7 +40,16 @@ class ModelNotFoundError(TrtLlmError):
 
 
 class ModelLoadError(TrtLlmError):
-    """A model failed to load (HTTP error, readiness timeout, or insufficient VRAM)."""
+    """A model failed to load (HTTP error or readiness timeout)."""
+
+
+class InsufficientVramError(ModelLoadError):
+    """A load failed with a CUDA out-of-memory error.
+
+    On a single GPU this usually means the previously-loaded model's VRAM was not reclaimed on
+    unload (TensorRT-LLM's cudaMallocAsync pool retains pages), so a backend restart is typically
+    required before a different model will fit. See trt-llm-explore WI #91.
+    """
 
 
 class ModelUnloadError(TrtLlmError):

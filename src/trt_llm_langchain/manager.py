@@ -17,6 +17,7 @@ Phase 2, see ``docs/02-plan.md``).
 
 from __future__ import annotations
 
+import subprocess
 import time
 from dataclasses import dataclass, field
 
@@ -24,11 +25,36 @@ import httpx
 
 from .config import TrtLlmSettings
 from .errors import (
+    InsufficientVramError,
     ModelLoadError,
     ModelNotFoundError,
     ModelUnloadError,
     ServerUnavailableError,
 )
+
+
+def free_vram_gb() -> float | None:
+    """Best-effort free VRAM (GB) of GPU 0 via nvidia-smi; None if unavailable.
+
+    Only meaningful when this client runs on the same host as the GPU.
+    """
+    try:
+        result = subprocess.run(
+            ["nvidia-smi", "--query-gpu=memory.free", "--format=csv,noheader,nounits"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        if result.returncode != 0:
+            return None
+        return float(result.stdout.strip().splitlines()[0]) / 1024.0
+    except (FileNotFoundError, subprocess.SubprocessError, ValueError, IndexError):
+        return None
+
+
+def _looks_like_oom(text: str) -> bool:
+    low = text.lower()
+    return "out of memory" in low or "cudamalloc" in low or "outofmemory" in low
 
 # Component pipelines per model, in dependency (load) order. Unload walks these in reverse.
 PIPELINE_NAMES: list[str] = [
@@ -195,12 +221,24 @@ class TrtLlmManager:
                 timeout=self.settings.load_timeout_s,
             )
             if resp.status_code != 200:
-                raise ModelLoadError(
-                    f"Failed to load {component}: HTTP {resp.status_code} {resp.text!r}. "
-                    "Insufficient VRAM (unload another model first) or the model repo is "
-                    "missing for this key are the usual causes."
-                )
+                self._raise_load_error(component, resp)
             self._wait_ready(component)
+
+    def _raise_load_error(self, component: str, resp: httpx.Response) -> None:
+        text = resp.text
+        if _looks_like_oom(text):
+            free = free_vram_gb()
+            free_str = f"{free:.1f} GB free" if free is not None else "free VRAM unknown"
+            raise InsufficientVramError(
+                f"Out of VRAM loading {component} ({free_str}). On a single GPU the previous "
+                "model's memory is often not reclaimed on unload (TensorRT-LLM pool retention), "
+                "so a backend restart is usually required before a different model will fit. "
+                "See trt-llm-explore WI #91."
+            )
+        raise ModelLoadError(
+            f"Failed to load {component}: HTTP {resp.status_code} {text!r}. "
+            "A missing model repo for this key is the usual non-VRAM cause."
+        )
 
     def _wait_ready(self, component: str) -> None:
         deadline = self.settings.ready_timeout_s
