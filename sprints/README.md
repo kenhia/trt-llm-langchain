@@ -46,4 +46,5 @@ Deferred items, new TODOs, things to verify later.
 
 | Sprint | Title | Status |
 |---|---|---|
-| [01](sprint-01-manager.md) | Manager + connectivity | code-complete (live verify pending) |
+| [01](sprint-01-manager.md) | Manager + connectivity | complete (live-verified) |
+| [02](sprint-02-chat-trtllm.md) | `ChatTrtLlm` over `ChatOpenAI` | complete (live-verified) |
