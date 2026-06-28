@@ -49,3 +49,4 @@ Deferred items, new TODOs, things to verify later.
 | [01](sprint-01-manager.md) | Manager + connectivity | complete (live-verified) |
 | [02](sprint-02-chat-trtllm.md) | `ChatTrtLlm` over `ChatOpenAI` | complete (live-verified) |
 | [03](sprint-03-swap-lcel.md) | Model swapping + LCEL | complete (live-verified; restart-based swap) |
+| [04](sprint-04-hardening.md) | Hardening, live tests, README | complete (live-verified) |
