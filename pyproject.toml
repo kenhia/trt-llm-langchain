@@ -1,16 +1,24 @@
 [project]
 name = "trt-llm-langchain"
 version = "0.1.0"
-description = "Add your description here"
+description = "Use TensorRT-LLM models from LangChain (ChatTrtLlm) with model load/unload and streaming"
 readme = "README.md"
 authors = [
     { name = "Ken Hiatt", email = "ken.hiatt@gmail.com" }
 ]
 requires-python = ">=3.11"
-dependencies = []
+dependencies = [
+    "httpx>=0.27",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8",
+    "ruff>=0.6",
+]
 
 [project.scripts]
-trt-llm-langchain = "trt_llm_langchain:main"
+trtllm-lc = "trt_llm_langchain.cli:main"
 
 [build-system]
 requires = ["uv_build>=0.11.25,<0.12.0"]
