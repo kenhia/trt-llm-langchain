@@ -28,11 +28,19 @@ class TrtLlmSettings:
     control_url: str = DEFAULT_CONTROL_URL
     api_key: str = DEFAULT_API_KEY
 
+    # Optional shell command that restarts the backend and reclaims VRAM (nothing loaded
+    # afterward), enabling automatic restart-based model swaps. e.g.
+    # "just -C /home/ken/src/ai/trt-llm-explore restart" or
+    # "docker restart trt-llm-explore-triton-1". If None, a swap that needs a restart raises
+    # BackendRestartRequiredError instead of acting. See trt-llm-explore sprint 006 / WI #91.
+    restart_command: str | None = None
+
     # Timeouts (seconds)
     request_timeout_s: float = 10.0  # quick control-plane calls (health, index, ready)
     load_timeout_s: float = 60.0  # per-component load POST
     unload_timeout_s: float = 30.0  # per-component unload POST
     ready_timeout_s: float = 30.0  # budget to poll a component to READY after load
+    restart_timeout_s: float = 180.0  # budget for the backend to come back healthy after restart
 
     @classmethod
     def from_env(cls) -> TrtLlmSettings:
@@ -41,4 +49,5 @@ class TrtLlmSettings:
             chat_url=os.environ.get("TRTLLM_CHAT_URL", DEFAULT_CHAT_URL).rstrip("/"),
             control_url=os.environ.get("TRTLLM_CONTROL_URL", DEFAULT_CONTROL_URL).rstrip("/"),
             api_key=os.environ.get("TRTLLM_API_KEY", DEFAULT_API_KEY),
+            restart_command=os.environ.get("TRTLLM_RESTART_CMD") or None,
         )

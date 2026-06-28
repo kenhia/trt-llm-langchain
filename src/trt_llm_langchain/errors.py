@@ -40,7 +40,38 @@ class ModelNotFoundError(TrtLlmError):
 
 
 class ModelLoadError(TrtLlmError):
-    """A model failed to load (HTTP error, readiness timeout, or insufficient VRAM)."""
+    """A model failed to load (HTTP error or readiness timeout)."""
+
+
+class InsufficientVramError(ModelLoadError):
+    """A load failed with a CUDA out-of-memory error.
+
+    On a single GPU this usually means the previously-loaded model's VRAM was not reclaimed on
+    unload (TensorRT-LLM's cudaMallocAsync pool retains pages), so a backend restart is typically
+    required before a different model will fit. See trt-llm-explore WI #91.
+    """
+
+
+class BackendRestartRequiredError(ModelLoadError):
+    """A swap to a different model needs a backend restart that isn't configured.
+
+    On a single GPU, unload does not free VRAM, so loading a different model requires restarting
+    the backend first. Configure ``restart_command`` (or ``TRTLLM_RESTART_CMD``) / pass a
+    ``restart_backend`` callable to let the client do this automatically; otherwise restart the
+    backend manually (``just swap <key>`` / ``just restart`` in trt-llm-explore) and retry.
+    """
+
+    def __init__(self, target: str, current: list[str]) -> None:
+        self.target = target
+        self.current = current
+        super().__init__(
+            f"Switching to {target!r} requires reclaiming VRAM held by currently-loaded "
+            f"model(s) {current}. On a single GPU, unload does not free VRAM (TensorRT-LLM pool "
+            "retention), so the backend must be restarted before a different model will load. "
+            f"Restart it (e.g. `just swap {target}` or `just restart` in trt-llm-explore, or "
+            "restart the Triton container) and retry — or set TRTLLM_RESTART_CMD / pass "
+            "restart_backend so the client does it automatically. See trt-llm-explore sprint 006."
+        )
 
 
 class ModelUnloadError(TrtLlmError):
