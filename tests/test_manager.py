@@ -10,6 +10,7 @@ import httpx
 import pytest
 
 from trt_llm_langchain import (
+    BackendRestartRequiredError,
     ModelNotFoundError,
     TrtLlmManager,
     TrtLlmSettings,
@@ -92,10 +93,10 @@ class Backend:
         return httpx.Response(404)
 
 
-def _manager(backend: Backend) -> TrtLlmManager:
+def _manager(backend: Backend, **kw) -> TrtLlmManager:
     settings = TrtLlmSettings(ready_timeout_s=2.0)
     client = httpx.Client(base_url="http://test", transport=httpx.MockTransport(backend.handler))
-    return TrtLlmManager(settings, client=client)
+    return TrtLlmManager(settings, client=client, **kw)
 
 
 def test_models_parsing_and_vision_classification() -> None:
@@ -121,19 +122,44 @@ def test_validate_unknown_model_raises() -> None:
     assert "qwen2_5-coder-7b-fp16" in str(ei.value)  # lists available
 
 
-def test_ensure_loaded_swaps_models() -> None:
-    backend = Backend(loaded={"qwen2-vl-7b-fp16"})
-    mgr = _manager(backend)
-    mgr.ensure_loaded("qwen2_5-coder-7b-fp16")
-    # old model unloaded, new one resident
-    assert backend.loaded == {"qwen2_5-coder-7b-fp16"}
-    # an unload of the vision model and a load of the chat model both happened
-    assert any("unload" in c and "qwen2-vl-7b-fp16" in c for c in backend.calls)
-    assert any("load" in c and "ensemble_qwen2_5-coder-7b-fp16" in c for c in backend.calls)
-
-
 def test_ensure_loaded_noop_when_already_responsive() -> None:
     backend = Backend(loaded={"qwen2_5-coder-7b-fp16"})
     mgr = _manager(backend)
     mgr.ensure_loaded("qwen2_5-coder-7b-fp16")
     assert not any("/load" in c or "/unload" in c for c in backend.calls)
+
+
+def test_ensure_loaded_fresh_load_needs_no_restart() -> None:
+    backend = Backend(loaded=set())
+    mgr = _manager(backend)
+    mgr.ensure_loaded("qwen2_5-coder-7b-fp16")
+    assert backend.loaded == {"qwen2_5-coder-7b-fp16"}
+
+
+def test_ensure_loaded_swap_without_restart_raises() -> None:
+    # A different model is resident and no restart strategy is configured.
+    backend = Backend(loaded={"qwen2-vl-7b-fp16"})
+    mgr = _manager(backend)
+    with pytest.raises(BackendRestartRequiredError) as ei:
+        mgr.ensure_loaded("qwen2_5-coder-7b-fp16")
+    assert ei.value.target == "qwen2_5-coder-7b-fp16"
+    assert "qwen2-vl-7b-fp16" in ei.value.current
+    # crucially: did NOT do an in-place unload/load (which would OOM on real hardware)
+    assert not any("/load" in c or "/unload" in c for c in backend.calls)
+
+
+def test_ensure_loaded_swap_with_restart_callable() -> None:
+    # restart hook simulates VRAM reclaim: backend comes back with nothing loaded.
+    backend = Backend(loaded={"qwen2-vl-7b-fp16"})
+    restarts: list[int] = []
+
+    def restart() -> None:
+        restarts.append(1)
+        backend.loaded.clear()
+
+    mgr = _manager(backend, restart_backend=restart)
+    mgr.ensure_loaded("qwen2_5-coder-7b-fp16")
+    assert restarts == [1]  # restarted exactly once
+    assert backend.loaded == {"qwen2_5-coder-7b-fp16"}  # target loaded after restart
+    # no in-place unload of the previous model
+    assert not any("unload" in c for c in backend.calls)

@@ -1,19 +1,23 @@
 """Switch models at the call site — the core ChatTrtLlm value over a fixed endpoint.
 
-Constructing a second ChatTrtLlm with a different `model` triggers an unload-then-load swap on
-the next call (single GPU holds one model at a time).
+Constructing a second ChatTrtLlm with a different `model` triggers a model swap on the next call.
+On a single GPU this is **restart-based**: unload does not reclaim VRAM (TensorRT-LLM pool
+retention), so the backend is restarted to free VRAM before the new model loads.
+See trt-llm-explore sprint 006 / WI #91.
 
-NOTE (trt-llm-explore WI #91): on the current backend, unload does not reclaim VRAM, so the
-swap load can fail with CUDA OOM until the backend is restarted. This example handles that
-explicitly: it catches InsufficientVramError and prints the actionable guidance rather than
-leaking a raw CUDA stack. Once WI #91 is resolved (or the backend is restarted between models),
-the swap completes cleanly.
+To make the swap automatic, point the client at a restart command, e.g.:
+
+    export TRTLLM_RESTART_CMD="just -C /home/ken/src/ai/trt-llm-explore restart"
+    # or: export TRTLLM_RESTART_CMD="docker restart trt-llm-explore-triton-1"
+
+Without it, the swap raises BackendRestartRequiredError with guidance (caught below) — restart the
+backend manually (`just swap <key>`) and rerun.
 
 Prereq: a backend running, with engines built/set up for BOTH models below.
 Run: uv run python examples/swap_models.py
 """
 
-from trt_llm_langchain import ChatTrtLlm, InsufficientVramError
+from trt_llm_langchain import BackendRestartRequiredError, ChatTrtLlm, InsufficientVramError
 
 
 def ask(model_key: str, question: str) -> None:
@@ -21,13 +25,15 @@ def ask(model_key: str, question: str) -> None:
     chat = ChatTrtLlm(model=model_key, max_tokens=64)
     try:
         print(chat.invoke(question).content)
+    except BackendRestartRequiredError as exc:
+        print(f"[swap needs restart] {exc}")
     except InsufficientVramError as exc:
-        print(f"[swap blocked] {exc}")
+        print(f"[out of VRAM] {exc}")
 
 
 def main() -> None:
     ask("qwen2_5-coder-7b-fp16", "Write a one-line Python factorial.")
-    # Switching model => unload qwen, load llama on next call.
+    # Different model => restart-based swap on the next call (auto if TRTLLM_RESTART_CMD is set).
     ask("llama-3_1-8b-fp16", "In one sentence, what is a tensor?")
 
 

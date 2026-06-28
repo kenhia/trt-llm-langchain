@@ -1,64 +1,71 @@
 # Sprint 3 — Model swapping + LCEL
 
-_Status: in progress — backend-independent parts done; live swap blocked on WI #91 · Started: 2026-06-28 · Branch: `sprint-03-swap-lcel`_
+_Status: complete (live-verified) · Started: 2026-06-28 · Landed: 2026-06-28 · Branch: `sprint-03-swap-lcel`_
 
 ## Goal
 
 Exercise an actual model swap (qwen → llama) via `ChatTrtLlm(model=...)`, plus LCEL composition
-(`prompt | model`) and a `bind_tools`/structured-output check.
+(`prompt | model`) and a `bind_tools` check.
 
-## Scope note
+## How the swap requirement resolved (WI #91)
 
-Per the Sprint 2 follow-up and the split decision: the live swap depends on **WI #91** (unload
-doesn't reclaim VRAM, so swap OOMs until backend restart). Ken is fixing that in
-`trt-llm-explore`. This sprint lands everything that does **not** depend on the backend swap
-working, and designs the client to handle the VRAM reality correctly regardless of how #91 lands.
+`trt-llm-explore` sprint 006 confirmed: on a single GPU, **unload does not reclaim VRAM** (TRT-LLM
+`cudaMallocAsync` pool retention; no Triton 25.05 knob to trim it). The reliable swap is therefore
+**restart-based** — restart the backend (reclaims VRAM) then load the target. Explore shipped
+`just restart` and `just swap <key>` and documented the contract for this client:
+`ensure_loaded` must be restart-based, not in-place. This sprint implements exactly that.
 
 ## What shipped
 
-- **`ensure_loaded` VRAM hardening (client-side half of WI #91).**
-  - New [`InsufficientVramError(ModelLoadError)`](../src/trt_llm_langchain/errors.py).
-  - [`manager.py`](../src/trt_llm_langchain/manager.py): `load()` now detects CUDA OOM in the
-    failed-load response (`_looks_like_oom`) and raises `InsufficientVramError` with actionable
-    guidance ("…a backend restart is usually required… See WI #91") plus best-effort free VRAM
-    via a new `free_vram_gb()` (nvidia-smi). Non-OOM load failures still raise plain
-    `ModelLoadError`. Callers catching `ModelLoadError` still catch both.
-- **LCEL example** — [`examples/lcel_chain.py`](../examples/lcel_chain.py) (`prompt | model |
-  StrOutputParser`).
-- **Swap example** — [`examples/swap_models.py`](../examples/swap_models.py): constructs qwen
-  then llama; catches `InsufficientVramError` and prints the guidance instead of leaking a CUDA
-  stack. Completes cleanly once #91 is resolved (or the backend is restarted between models).
-- **Tests (offline):**
-  - [`tests/test_vram.py`](../tests/test_vram.py) — OOM body ⇒ `InsufficientVramError`;
-    non-OOM ⇒ plain `ModelLoadError`; subclass relationship.
-  - [`tests/test_lcel.py`](../tests/test_lcel.py) — ChatTrtLlm is a `Runnable`, LCEL pipe
-    constructs without network, `bind_tools(...)` returns a runnable.
+- **Restart-based `ensure_loaded`** ([`manager.py`](../src/trt_llm_langchain/manager.py)). On a
+  swap to a *different* model it no longer does an in-place unload→load (which OOMs). Instead:
+  no-op if already responsive → else if another model is resident, restart the backend (reclaims
+  VRAM) and load the target → else fresh-load.
+  - Opt-in restart strategy: `restart_backend` callable, or `restart_command` /
+    `TRTLLM_RESTART_CMD` (e.g. `docker restart trt-llm-explore-triton-1`). After restart the
+    manager waits for health (`restart_timeout_s`). If a restart hook also loads (`just swap`),
+    the post-restart responsiveness check short-circuits.
+  - No restart configured + swap needed ⇒ [`BackendRestartRequiredError`](../src/trt_llm_langchain/errors.py)
+    with actionable guidance — **fails fast, never attempts the OOM-ing in-place load**.
+- **VRAM/OOM backstop** (from earlier in the sprint): a load that still OOMs raises
+  `InsufficientVramError` with free-VRAM (nvidia-smi best-effort) instead of a raw CUDA stack.
+- **Examples**: [`lcel_chain.py`](../examples/lcel_chain.py),
+  [`swap_models.py`](../examples/swap_models.py) (documents `TRTLLM_RESTART_CMD`, catches both
+  restart/VRAM errors).
+- **Tests (offline)**: restart-based swap (`test_manager.py`: no-restart⇒raises & does no
+  in-place I/O; restart-callable⇒restarts once then loads; fresh-load needs no restart),
+  OOM classification (`test_vram.py`), LCEL/`Runnable`/`bind_tools` wiring (`test_lcel.py`).
 
 ## Decisions & discoveries
 
-- **Reactive OOM detection over a size precheck.** The manager doesn't know a model's size from
-  the KServe index, and a client-side nvidia-smi precheck only works when co-located with the
-  GPU. So the robust, portable approach is to detect OOM in the load failure and translate it to
-  a clear, typed error — works for any backend, no registry duplication. Free VRAM is added to the
-  message best-effort (nvidia-smi), not relied upon.
-- **The swap example turns the #91 limitation into demonstrated, handled behavior** rather than
-  hiding it — a better artifact than pretending hot-swap is seamless.
+- **Restart-based swap is the contract, encoded in `ensure_loaded`.** The previous unload-before-
+  load design is gone — it could only ever OOM on a single GPU. Restart strategy is opt-in so the
+  default client stays a pure HTTP client that manages no server lifecycle; wiring
+  `TRTLLM_RESTART_CMD` makes `ChatTrtLlm(model=...)` swaps seamless.
+- **Restart hook semantics = "restart only" (VRAM reclaimed, nothing loaded); the manager owns
+  the load.** A re-check of responsiveness after restart also tolerates a hook that loads.
+- **Co-residence (fit both models, skip the swap) is out of scope** — default
+  `kv_cache_free_gpu_mem_fraction` (0.90) makes the first model claim most VRAM; per-model token
+  budgets would be needed. Documented, not implemented.
 
 ## Outcomes
 
-- `uv run ruff check` clean; `uv run pytest -q` → **17 passed**.
-- **Live-verified:** `examples/lcel_chain.py` →
-  _"A CUDA stream is a sequence of operations that can be executed concurrently with other
-  streams on a GPU."_ (qwen, through the LCEL pipe.)
-- **Deferred to post-#91 (needs backend):** live qwen→llama swap via `swap_models.py`; live
-  `bind_tools` tool-calling (model-dependent — wiring verified offline only).
+- `uv run ruff check` clean; `uv run pytest -q` → **19 passed**.
+- **Live-verified (backend up):**
+  - LCEL: `prompt | model | StrOutputParser` (qwen) → coherent CUDA-stream answer.
+  - **Restart-based swap** via `swap_models.py` with `TRTLLM_RESTART_CMD="docker restart
+    trt-llm-explore-triton-1"`: qwen answered → container restarted → llama loaded → llama
+    answered, ~36 s end-to-end. `status` after: only `llama-3_1-8b-fp16` resident, qwen's VRAM
+    reclaimed.
+  - **Default path** (no restart cmd, llama resident, ask qwen): raised
+    `BackendRestartRequiredError` immediately, llama left undisturbed (no OOM, no churn).
 
 ## Follow-ups
 
-- After **WI #91**: run `swap_models.py` end-to-end; confirm whether a clean in-process swap is
-  achievable or whether the documented path is "restart backend to swap" (and, if the latter,
-  decide whether `ensure_loaded` should surface that as the primary guidance — already does).
-- Live `bind_tools` / `with_structured_output` against qwen (the proxy has `tool_parsers.py`);
-  document which served models actually support tool calls.
-- Requires llama-3_1-8b-fp16 engine to be **built + set up** in the backend for the swap demo
-  (verify during the post-#91 run).
+- Live `bind_tools` / `with_structured_output` against served models (wiring verified offline;
+  tool-calling is model-dependent) — candidate for Phase 2 or a small Sprint 3.x.
+- Streaming on models other than qwen needs the backend operational step (`just setup-all` +
+  `just restart`) to refresh stale `decoupled: false` configs (explore WI #90 runbook). qwen
+  (hand-patched) and llama-3_1-8b-fp8 already stream; llama-3_1-8b-fp16 will after `setup-all`.
+- Consider letting `ChatTrtLlm` forward a `restart_backend` callable (today: configure via
+  `TRTLLM_RESTART_CMD`, or build a `TrtLlmManager` and inject it).

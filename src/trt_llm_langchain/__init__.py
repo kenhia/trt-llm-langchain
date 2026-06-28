@@ -7,6 +7,7 @@ TensorRT-LLM server, with lazy model load/unload via :class:`TrtLlmManager`.
 from .chat import ChatTrtLlm
 from .config import TrtLlmSettings
 from .errors import (
+    BackendRestartRequiredError,
     InsufficientVramError,
     ModelLoadError,
     ModelNotFoundError,
@@ -27,5 +28,6 @@ __all__ = [
     "ModelNotFoundError",
     "ModelLoadError",
     "InsufficientVramError",
+    "BackendRestartRequiredError",
     "ModelUnloadError",
 ]

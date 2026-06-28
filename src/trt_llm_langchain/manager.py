@@ -17,14 +17,17 @@ Phase 2, see ``docs/02-plan.md``).
 
 from __future__ import annotations
 
+import shlex
 import subprocess
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 
 import httpx
 
 from .config import TrtLlmSettings
 from .errors import (
+    BackendRestartRequiredError,
     InsufficientVramError,
     ModelLoadError,
     ModelNotFoundError,
@@ -123,6 +126,7 @@ class TrtLlmManager:
         settings: TrtLlmSettings | None = None,
         *,
         client: httpx.Client | None = None,
+        restart_backend: Callable[[], None] | None = None,
     ) -> None:
         self.settings = settings or TrtLlmSettings.from_env()
         # ``client`` is an injection seam for tests (e.g. httpx.MockTransport).
@@ -130,6 +134,8 @@ class TrtLlmManager:
             base_url=self.settings.control_url,
             timeout=self.settings.request_timeout_s,
         )
+        # Optional restart strategy: explicit callable wins; else built from settings.restart_command.
+        self._restart_backend = restart_backend
 
     # -- low-level HTTP ----------------------------------------------------------------
 
@@ -268,22 +274,75 @@ class TrtLlmManager:
             raise ModelUnloadError(f"Unload incomplete for {key}: {', '.join(failures)}")
 
     def ensure_loaded(self, key: str) -> None:
-        """Make ``key`` the resident model.
+        """Make ``key`` the resident model, using a **restart-based** swap on a single GPU.
 
-        No-op if it is already responsive. Otherwise unload every other loaded model first
-        (a single 5090 holds one model at a time), then load ``key``.
+        No-op if ``key`` is already responsive. If a *different* model is loaded, a clean unload
+        would not free its VRAM (TensorRT-LLM pool retention; see trt-llm-explore sprint 006 /
+        WI #91), so we restart the backend to reclaim VRAM, then load ``key``. If no restart
+        strategy is configured, raise :class:`BackendRestartRequiredError` with guidance.
         """
         self.validate(key)
         if self.is_responsive(key):
             return
-        for other in self.loaded_keys():
-            if other != key:
-                try:
-                    self.unload(other)
-                except ModelUnloadError:
-                    # Best effort — proceed; the load below will fail loudly on real OOM.
-                    pass
+
+        others = [k for k in self.loaded_keys() if k != key]
+        if others:
+            if not self.can_restart():
+                raise BackendRestartRequiredError(target=key, current=others)
+            self.restart_backend()  # reclaims VRAM; backend comes back with nothing loaded
+            if self.is_responsive(key):
+                # A restart hook that also loads (e.g. `just swap <key>`) may already be done.
+                return
+
         self.load(key)
+
+    # -- restart strategy --------------------------------------------------------------
+
+    def can_restart(self) -> bool:
+        """Whether an automatic backend restart is available (callable or configured command)."""
+        return self._restart_backend is not None or bool(self.settings.restart_command)
+
+    def restart_backend(self) -> None:
+        """Restart the backend to reclaim VRAM, then wait for it to become healthy.
+
+        Uses the injected ``restart_backend`` callable if present, else runs
+        ``settings.restart_command``. Raises :class:`BackendRestartRequiredError`-family /
+        :class:`ModelLoadError` on failure.
+        """
+        if self._restart_backend is not None:
+            self._restart_backend()
+        elif self.settings.restart_command:
+            self._run_restart_command(self.settings.restart_command)
+        else:  # pragma: no cover - guarded by can_restart() at call sites
+            raise ModelLoadError("No restart strategy configured")
+        self._wait_healthy(self.settings.restart_timeout_s)
+
+    def _run_restart_command(self, command: str) -> None:
+        try:
+            proc = subprocess.run(
+                shlex.split(command),
+                capture_output=True,
+                text=True,
+                timeout=self.settings.restart_timeout_s,
+            )
+        except (FileNotFoundError, subprocess.SubprocessError) as exc:
+            raise ModelLoadError(f"Restart command failed to run ({command!r}): {exc}") from exc
+        if proc.returncode != 0:
+            raise ModelLoadError(
+                f"Restart command exited {proc.returncode} ({command!r}): "
+                f"{proc.stderr.strip()[:300]}"
+            )
+
+    def _wait_healthy(self, timeout_s: float) -> None:
+        waited = 0.0
+        while waited < timeout_s:
+            if self.is_healthy():
+                return
+            time.sleep(1.0)
+            waited += 1.0
+        raise ServerUnavailableError(
+            self.settings.control_url, f"did not become healthy within {timeout_s:.0f}s of restart"
+        )
 
     def close(self) -> None:
         self._client.close()

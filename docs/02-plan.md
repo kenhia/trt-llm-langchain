@@ -82,9 +82,14 @@ console-script stub in `pyproject.toml` unless you want a CLI.)
    prefixed/suffixed per explore's convention). Reuse explore's load ordering + readiness poll;
    unload in reverse. Encapsulate this so callers only ever say `ensure_loaded("qwen2_5-coder-7b-fp16")`.
 
-5. **Single-GPU = unload-before-load.** `ensure_loaded(target)`: if `target` already RESPONSIVE →
-   no-op; else unload the currently-loaded model (if any), then load `target`, polling readiness
-   and surfacing VRAM errors as `ModelLoadError`. (Explore's loader already does the VRAM check.)
+5. **Single-GPU swap is RESTART-based** (revised in Sprint 3 after explore WI #91). A clean unload
+   does *not* reclaim VRAM (TRT-LLM `cudaMallocAsync` pool retention), so in-place unload→load
+   OOMs. `ensure_loaded(target)`: no-op if `target` is RESPONSIVE; else if a *different* model is
+   resident, restart the backend (reclaims VRAM) then load `target`; else fresh-load. Restart is
+   an opt-in strategy (`restart_backend` callable or `TRTLLM_RESTART_CMD`); without it a swap
+   raises `BackendRestartRequiredError` rather than attempting the OOM-ing load. A reactive
+   `InsufficientVramError` backstops any load that still OOMs. See
+   [`sprints/sprint-03-swap-lcel.md`](../sprints/sprint-03-swap-lcel.md).
 
 6. **Streaming is free.** Inherited from `ChatOpenAI`. Set `stream_usage=True` by default since
    explore's proxy supports `stream_options.include_usage` (verify in smoke test).
