@@ -73,8 +73,10 @@ A single GPU holds **one model at a time**, and TensorRT-LLM does **not** free V
 reclaim VRAM, then loading the target. Wire up a restart command to make swaps automatic:
 
 ```bash
-export TRTLLM_RESTART_CMD="docker restart trt-llm-explore-triton-1"
-# or, using the explore recipe:  just -C /path/to/trt-llm-explore restart
+# Prefer the backend's restart recipe (stable across a backend rename):
+export TRTLLM_RESTART_CMD="just -C /path/to/your/trt-llm-backend restart"
+# or restart the container directly (name depends on your deployment):
+#   export TRTLLM_RESTART_CMD="docker restart <triton-container-name>"
 ```
 
 ```python

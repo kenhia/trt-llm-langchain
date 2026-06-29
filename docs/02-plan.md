@@ -163,8 +163,12 @@ How should the two repos relate so the result is cohesive for outsiders? Options
   - ✅ Lean client, broad compatibility, still a cohesive quickstart; decouples release cadence.
   - ❌ Must write + maintain the contract spec and keep explore conformant.
 
-**Don't lock this in now** — revisit in Sprint 5 once the client works against the real backend,
-because building it will surface which couplings are load-bearing. Current leaning: **C**.
+**Decided (Sprint 5): option C** — see [ADR 0001](decisions/0001-backend-integration-strategy.md).
+The client is the published product; it depends only on the
+[backend contract](03-backend-contract.md). The reference backend (`trt-llm-explore`) will be
+cleaned up, likely **renamed**, and published with setup docs coordinated to the contract
+(tracked in that project, korg WI #93). Client docs refer to the backend by role so a rename
+doesn't break them.
 
 ## Build sprints
 
