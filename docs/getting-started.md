@@ -152,8 +152,9 @@ OOMs). It's **co-located only** — for a remote backend, load the target server
 
 ## 4. Use it like any LangChain chat model
 
-`ChatTrtLlm` is a `ChatOpenAI` subclass — LCEL, batching, async, `bind_tools`,
-`with_structured_output` all work:
+`ChatTrtLlm` is a `ChatOpenAI` subclass, so LCEL, batching, and async work directly. For typed
+output use `with_structured_output(schema, method="json_mode")` (function-calling `tool_calls`
+aren't emitted by the current backend — see the README limitations):
 
 ```python
 from langchain_core.prompts import ChatPromptTemplate

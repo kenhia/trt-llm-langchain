@@ -64,8 +64,24 @@ def test_bind_tools_live(mgr: TrtLlmManager) -> None:
 
     chat = ChatTrtLlm(model=model, max_tokens=64, settings=mgr.settings).bind_tools([add])
     msg = chat.invoke("What is 2 + 3? Use the add tool.")
-    # No assertion on tool_calls presence (model-dependent); just that we got a message back.
+    # No assertion on tool_calls presence: the current proxy/models do NOT emit function-calling
+    # tool_calls, so this only checks the call succeeds. Use json_mode for typed output instead.
     assert msg is not None
+
+
+def test_structured_output_json_mode(mgr: TrtLlmManager) -> None:
+    from pydantic import BaseModel
+
+    class Person(BaseModel):
+        name: str
+        age: int
+
+    model = _a_chat_model(mgr)
+    chat = ChatTrtLlm(model=model, max_tokens=128, settings=mgr.settings)
+    out = chat.with_structured_output(Person, method="json_mode").invoke(
+        "Return JSON with keys name and age. Ada Lovelace was 36."
+    )
+    assert out.name and isinstance(out.age, int)
 
 
 @pytest.mark.skipif(
