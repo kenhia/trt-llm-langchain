@@ -1,8 +1,9 @@
-"""Structured output with ChatTrtLlm via `with_structured_output(method="json_mode")`.
+"""Structured output with ChatTrtLlm via `with_structured_output`.
 
-On the current backend, function-calling tool_calls are not emitted by the proxy/models, so the
-reliable path to typed output is JSON mode: the model returns a JSON object and LangChain parses
-it into your Pydantic schema. Make the prompt name the fields you want.
+`method="json_mode"` (below) works on any chat model — the model returns a JSON object and
+LangChain parses it into your Pydantic schema; name the fields in the prompt.
+`method="function_calling"` also works on tool-capable models (Llama/Qwen/Mistral) but not
+tool-less ones (Phi), so json_mode is the universal default.
 
 Prereq: a backend running with a chat model loaded.
 Run: uv run python examples/structured_output.py

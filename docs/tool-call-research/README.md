@@ -8,6 +8,15 @@ or **[I]** inferred._
 > Companion to korg **explore #94** (investigate tool emission) and **trt-llm-langchain #95**
 > (coordinate client-side testing). Context: a single RTX 5090 (Blackwell, sm_120, 32 GB).
 
+> **Update (Sprint 10, 2026-06-29) — Option A shipped & validated.** The non-streaming tool path
+> was fixed in `trt-llm-explore`: parser robustness (`<function_call>`/fenced/bare-array formats,
+> `arguments|parameters`, dedup) + `tool_choice` object form. **6/7 chat models now return
+> `tool_calls`** via `ChatTrtLlm` (all but Phi, which has no native tool support). The original
+> empty-`tool_calls` cause was the **wrong test model (qwen-coder) + over-strict parsers**, not
+> broken prompt injection (injection worked all along). Streaming tools remain unsupported. See
+> explore `specs/007-tool-calling-fixes/` and `sprints/sprint-10-tool-calling.md`. The
+> vLLM-sibling option below remains the "most capable" future path.
+
 ---
 
 ## TL;DR

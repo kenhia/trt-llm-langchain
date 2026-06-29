@@ -159,11 +159,12 @@ All derive from `TrtLlmError`:
 - Built and verified against a single RTX 5090 + `trt-llm-explore` (Triton 25.05 / TRT-LLM 1.3).
 - Single-GPU swap is restart-based (above); co-resident multi-model is not yet supported.
 - Vision models (`*-vl-*`, `llava-*`) load, but multimodal message handling isn't wrapped yet.
-- **Tool calling:** `bind_tools` is inherited, but the current backend/models don't emit
-  function-calling `tool_calls` (verified empty on qwen). For typed output, use
-  `with_structured_output(schema, method="json_mode")` — that works (see
-  [`examples/structured_output.py`](examples/structured_output.py)). Default
-  (`method="function_calling"`) does **not**.
+- **Tool calling** works **non-streaming** on tool-capable models — verified across the
+  `trt-llm-explore` registry: Llama-3.1-8B (fp16/fp8/awq), Qwen2.5-Coder-7B (fp16/fp8), and
+  Mistral-7B all return `tool_calls` via `bind_tools`; `with_structured_output` works with both
+  `method="function_calling"` and `"json_mode"`. Phi-3.5-mini has no native tool support.
+  **Streaming tool calls are not supported** by the backend (the streaming path emits text only) —
+  keep tool turns non-streaming. See [`examples/tool_calling.py`](examples/tool_calling.py).
 
 ## Backend
 
