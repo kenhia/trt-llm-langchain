@@ -8,9 +8,9 @@ not special. This document is the seam that lets the client and the backend evol
 There are **two surfaces**, configured by `TRTLLM_CHAT_URL` (default `:8003`) and
 `TRTLLM_CONTROL_URL` (default `:8000`).
 
-> The reference backend is referred to here by role; the concrete project (`trt-llm-explore`
-> today) will be cleaned up and likely renamed (ADR 0001 / korg WI #93). Treat any specific
-> names, paths, or container identifiers below as examples.
+> The reference backend is `trt-llm-explore` (kept under that name; an earlier rename idea was
+> dropped — ADR 0001). It will still be generalized for publish (korg WI #93). Treat specific
+> paths and container identifiers below as examples — they depend on your deployment.
 
 ## 1. Chat surface — OpenAI-compatible (`TRTLLM_CHAT_URL`)
 

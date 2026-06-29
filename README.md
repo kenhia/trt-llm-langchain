@@ -49,6 +49,27 @@ ChatTrtLlm (ChatOpenAI)  ──chat/stream──▶  :8003 /v1/chat/completions
   named `{pipeline}_{model_key}` (the [`trt-llm-explore`](#backend) contract). Start it first —
   including the OpenAI proxy (e.g. `just up-openai` in that project).
 
+## Quickstart: stand up a backend
+
+The reference backend is [`trt-llm-explore`](#backend). With a built/set-up model, bring up Triton
++ the OpenAI proxy and load a model:
+
+```bash
+# in the trt-llm-explore checkout
+just up            # Triton (KServe v2 on :8000)
+just up-openai     # OpenAI-compatible proxy (:8003)
+just load qwen2_5-coder-7b-fp16
+```
+
+Then, from your LangChain code:
+
+```python
+from trt_llm_langchain import ChatTrtLlm
+print(ChatTrtLlm().invoke("Hello!").content)   # adopts the loaded model
+```
+
+See the backend's README for building/setting up engines.
+
 ## Install
 
 ```bash
