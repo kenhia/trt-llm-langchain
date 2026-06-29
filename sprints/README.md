@@ -55,3 +55,4 @@ Deferred items, new TODOs, things to verify later.
 | [07](sprint-07-packaging.md) | Publish-ready packaging | complete |
 | [08](sprint-08-getting-started.md) | Getting-started guide | complete (consume path live-verified) |
 | [09](sprint-09-polish.md) | Post-publish polish (CI pins, structured output) | complete (live-verified) |
+| [10](sprint-10-tool-calling.md) | Tool calling (Option A) | complete (live-validated; 6/7 models) |
