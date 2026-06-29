@@ -19,6 +19,12 @@ dev = [
     "ruff>=0.6",
 ]
 
+[tool.pytest.ini_options]
+markers = [
+    "live: integration tests that require a running backend (opt in with TRTLLM_LIVE=1)",
+]
+addopts = "-m 'not live'"
+
 [project.scripts]
 trtllm-lc = "trt_llm_langchain.cli:main"
 
