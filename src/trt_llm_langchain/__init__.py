@@ -12,6 +12,7 @@ from .errors import (
     ModelLoadError,
     ModelNotFoundError,
     ModelUnloadError,
+    ResidentModelError,
     ServerUnavailableError,
     TrtLlmError,
 )
@@ -26,6 +27,7 @@ __all__ = [
     "TrtLlmError",
     "ServerUnavailableError",
     "ModelNotFoundError",
+    "ResidentModelError",
     "ModelLoadError",
     "InsufficientVramError",
     "BackendRestartRequiredError",

@@ -16,8 +16,9 @@ from trt_llm_langchain import ChatTrtLlm, TrtLlmSettings
 class FakeManager:
     """Duck-typed stand-in for TrtLlmManager recording its calls."""
 
-    def __init__(self, known: set[str]) -> None:
+    def __init__(self, known: set[str], resident: str | None = None) -> None:
         self.known = known
+        self.resident = resident
         self.validated: list[str] = []
         self.ensured: list[str] = []
 
@@ -30,6 +31,13 @@ class FakeManager:
 
     def ensure_loaded(self, key: str) -> None:
         self.ensured.append(key)
+
+    def resident_model(self) -> str:
+        from trt_llm_langchain import ResidentModelError
+
+        if self.resident is None:
+            raise ResidentModelError("no resident model")
+        return self.resident
 
 
 def _completion(content: str, model: str) -> dict:
@@ -49,14 +57,19 @@ def _completion(content: str, model: str) -> dict:
     }
 
 
-def _chat(manager: FakeManager, reply: str = "hello from trt", **kwargs) -> ChatTrtLlm:
+def _chat(
+    manager: FakeManager,
+    reply: str = "hello from trt",
+    model: str | None = "qwen2_5-coder-7b-fp16",
+    **kwargs,
+) -> ChatTrtLlm:
     def handler(request: httpx.Request) -> httpx.Response:
         assert request.url.path.endswith("/chat/completions")
         return httpx.Response(200, json=_completion(reply, "qwen2_5-coder-7b-fp16"))
 
     http_client = httpx.Client(transport=httpx.MockTransport(handler))
     return ChatTrtLlm(
-        model="qwen2_5-coder-7b-fp16",
+        model=model,
         settings=TrtLlmSettings(chat_url="http://backend"),
         manager=manager,
         http_client=http_client,
@@ -100,3 +113,18 @@ def test_eager_load_loads_in_constructor() -> None:
 
 def test_llm_type() -> None:
     assert _chat(FakeManager(known={"qwen2_5-coder-7b-fp16"}))._llm_type == "trt-llm"
+
+
+def test_no_model_adopts_resident() -> None:
+    mgr = FakeManager(known={"qwen2_5-coder-7b-fp16"}, resident="qwen2_5-coder-7b-fp16")
+    chat = _chat(mgr, model=None)
+    assert chat.model_name == "qwen2_5-coder-7b-fp16"
+    # adoption does not load (the model is already resident); first call would no-op
+    assert mgr.ensured == []
+
+
+def test_no_model_no_resident_raises() -> None:
+    from trt_llm_langchain import ResidentModelError
+
+    with pytest.raises(ResidentModelError):
+        _chat(FakeManager(known={"qwen2_5-coder-7b-fp16"}, resident=None), model=None)

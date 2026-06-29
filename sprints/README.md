@@ -51,3 +51,4 @@ Deferred items, new TODOs, things to verify later.
 | [03](sprint-03-swap-lcel.md) | Model swapping + LCEL | complete (live-verified; restart-based swap) |
 | [04](sprint-04-hardening.md) | Hardening, live tests, README | complete (live-verified) |
 | [05](sprint-05-backend-contract.md) | Backend contract + integration decision (C) | complete |
+| [06](sprint-06-resident-default.md) | Resident-model default + swap strategy (ADR 0002) | complete (live-verified) |

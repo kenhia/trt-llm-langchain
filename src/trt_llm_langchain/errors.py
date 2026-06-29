@@ -24,6 +24,14 @@ class ServerUnavailableError(TrtLlmError):
         self.url = url
 
 
+class ResidentModelError(TrtLlmError):
+    """`ChatTrtLlm()` was constructed with no model, but the resident model is ambiguous.
+
+    Raised when zero or more than one model is currently loaded, so there is no single model to
+    adopt. Pass ``model=`` explicitly.
+    """
+
+
 class ModelNotFoundError(TrtLlmError):
     """Requested model key is not present in the backend's registry."""
 

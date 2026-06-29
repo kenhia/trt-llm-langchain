@@ -32,6 +32,7 @@ from .errors import (
     ModelLoadError,
     ModelNotFoundError,
     ModelUnloadError,
+    ResidentModelError,
     ServerUnavailableError,
 )
 
@@ -214,6 +215,23 @@ class TrtLlmManager:
     def validate(self, key: str) -> None:
         """Raise :class:`ModelNotFoundError` if ``key`` is not in the backend registry."""
         self._require(key)
+
+    def resident_model(self) -> str:
+        """The single currently-loaded model key (for ``ChatTrtLlm()`` with no explicit model).
+
+        Raises :class:`ResidentModelError` if zero or more than one model is loaded.
+        """
+        loaded = self.loaded_keys()
+        if len(loaded) == 1:
+            return loaded[0]
+        if not loaded:
+            raise ResidentModelError(
+                "No model is currently loaded. Pass model=... to ChatTrtLlm, or load one first "
+                "(e.g. `trtllm-lc load <key>`)."
+            )
+        raise ResidentModelError(
+            f"Multiple models are loaded ({', '.join(loaded)}). Pass model=... to choose one."
+        )
 
     # -- lifecycle ---------------------------------------------------------------------
 
