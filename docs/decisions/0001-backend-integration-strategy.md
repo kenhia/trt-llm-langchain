@@ -28,12 +28,11 @@ docs.
 
 - The client never bundles Docker/engine-build tooling; it stays lean.
 - The contract doc is the load-bearing artifact — it must stay accurate as the backend evolves.
-- **The reference backend (`trt-llm-explore`) will be cleaned up and likely renamed.** Therefore:
-  - Refer to it by **role** ("the reference backend") in client docs, not only by name, so a
-    rename doesn't invalidate the docs. Keep name references in one place (the quickstart) for an
-    easy update.
-  - Environment-specific identifiers the client currently documents (e.g. the container name in
-    `TRTLLM_RESTART_CMD` examples, `$TRTLLM_HOME`) must be presented as *examples*, not fixed.
+- **The reference backend (`trt-llm-explore`) will be cleaned up for publish** (~~and likely
+  renamed~~ — rename dropped, see Update below). Therefore:
+  - Environment-specific identifiers the client documents (e.g. the container name in
+    `TRTLLM_RESTART_CMD` examples, `$TRTLLM_HOME`) are presented as *examples*, not fixed — they
+    depend on the user's deployment.
 - **Setup docs must be coordinated across the two projects** so a user who wants to run Ken's
   TRT-LLM server gets a clear, single path: the client README links to the backend's setup; the
   backend documents the contract it implements and the `up` / `restart` / `swap` recipes the
@@ -43,7 +42,15 @@ docs.
 
 ## Follow-ups
 
-- Backend (separate project): generalize environment assumptions, rename, publish, and write setup
-  docs aligned to the contract. Tracked via korg in that project.
-- Client (Sprint 6): the quickstart that stands up the backend; keep backend name/identifiers
-  centralized for the rename.
+- Backend (separate project): generalize environment assumptions, publish, and write setup docs
+  aligned to the contract. Tracked via korg WI #93 in that project.
+- Client (Sprint 6, done): `ChatTrtLlm()` adopts the resident model; (Sprint 7) the quickstart
+  that stands up the backend.
+
+## Update (2026-06-29, Sprint 7)
+
+After further discussion, Ken decided to **keep the `trt-llm-explore` name** — the rename is
+**dropped**. The integration strategy (option C) is unchanged; the backend is still generalized for
+publish (WI #93, minus the rename). Client docs now use the name `trt-llm-explore` directly while
+still treating deployment-specific paths/container names as examples. (WI #93 should be updated to
+drop its rename item.)
