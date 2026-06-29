@@ -159,7 +159,11 @@ All derive from `TrtLlmError`:
 - Built and verified against a single RTX 5090 + `trt-llm-explore` (Triton 25.05 / TRT-LLM 1.3).
 - Single-GPU swap is restart-based (above); co-resident multi-model is not yet supported.
 - Vision models (`*-vl-*`, `llava-*`) load, but multimodal message handling isn't wrapped yet.
-- `bind_tools` is inherited but tool-calling quality is model-dependent.
+- **Tool calling:** `bind_tools` is inherited, but the current backend/models don't emit
+  function-calling `tool_calls` (verified empty on qwen). For typed output, use
+  `with_structured_output(schema, method="json_mode")` — that works (see
+  [`examples/structured_output.py`](examples/structured_output.py)). Default
+  (`method="function_calling"`) does **not**.
 
 ## Backend
 
