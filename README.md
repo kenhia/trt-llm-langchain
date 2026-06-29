@@ -51,6 +51,10 @@ ChatTrtLlm (ChatOpenAI)  ──chat/stream──▶  :8003 /v1/chat/completions
 
 ## Quickstart: stand up a backend
 
+> New to this? [**docs/getting-started.md**](docs/getting-started.md) walks the whole path from a
+> bare machine — install the backend, download + build + load a model, then consume the package
+> from your own project.
+
 The reference backend is [`trt-llm-explore`](#backend). With a built/set-up model, bring up Triton
 + the OpenAI proxy and load a model:
 

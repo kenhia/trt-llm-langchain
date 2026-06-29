@@ -53,3 +53,4 @@ Deferred items, new TODOs, things to verify later.
 | [05](sprint-05-backend-contract.md) | Backend contract + integration decision (C) | complete |
 | [06](sprint-06-resident-default.md) | Resident-model default + swap strategy (ADR 0002) | complete (live-verified) |
 | [07](sprint-07-packaging.md) | Publish-ready packaging | complete |
+| [08](sprint-08-getting-started.md) | Getting-started guide | complete (consume path live-verified) |
