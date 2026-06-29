@@ -84,6 +84,20 @@ The hard constraint that shapes `ensure_loaded`:
 See `trt-llm-explore` sprint 006 (WI #90 streaming/decoupled, WI #91 VRAM/swap) for the
 backend-side rationale and the recipes.
 
+The client's restart command (`TRTLLM_RESTART_CMD`) is **co-located only** — it shells out a local
+command, so it cannot restart a *remote* backend. A remote client gets `BackendRestartRequiredError`
+and must swap server-side.
+
+### Optional (future): server-side swap control endpoint
+
+To make swaps remotable and seamless without client-local restart authority, a backend MAY expose
+a control endpoint — e.g. `POST /admin/swap {"model": "<key>"}` that restarts + loads and returns
+when healthy, protected by a shared-secret token. This is **not required** by the contract and is
+**not implemented** in v1 (see [ADR 0002](decisions/0002-model-swap-strategy.md)); it's documented
+so the slot is reserved. When present, the client could call it from `ensure_loaded` instead of a
+local restart command. Auto-swapping inside `/v1/chat/completions` is intentionally *not* part of
+the contract (it would add surprising latency/side effects to the standard OpenAI endpoint).
+
 ## 5. What a non-`trt-llm-explore` backend must do to conform
 
 1. Expose the OpenAI chat surface (§1) with the model key as the OpenAI `id`.

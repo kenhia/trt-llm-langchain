@@ -12,6 +12,7 @@ import pytest
 from trt_llm_langchain import (
     BackendRestartRequiredError,
     ModelNotFoundError,
+    ResidentModelError,
     TrtLlmManager,
     TrtLlmSettings,
 )
@@ -120,6 +121,25 @@ def test_validate_unknown_model_raises() -> None:
     with pytest.raises(ModelNotFoundError) as ei:
         mgr.validate("does-not-exist")
     assert "qwen2_5-coder-7b-fp16" in str(ei.value)  # lists available
+
+
+def test_resident_model_single() -> None:
+    mgr = _manager(Backend(loaded={"qwen2_5-coder-7b-fp16"}))
+    assert mgr.resident_model() == "qwen2_5-coder-7b-fp16"
+
+
+def test_resident_model_none_raises() -> None:
+    mgr = _manager(Backend(loaded=set()))
+    with pytest.raises(ResidentModelError) as ei:
+        mgr.resident_model()
+    assert "No model" in str(ei.value)
+
+
+def test_resident_model_multiple_raises() -> None:
+    mgr = _manager(Backend(loaded={"qwen2_5-coder-7b-fp16", "qwen2-vl-7b-fp16"}))
+    with pytest.raises(ResidentModelError) as ei:
+        mgr.resident_model()
+    assert "Multiple" in str(ei.value)
 
 
 def test_ensure_loaded_noop_when_already_responsive() -> None:

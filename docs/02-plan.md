@@ -208,7 +208,13 @@ server works. Decide A/B/C above and record it in an ADR (`docs/decisions/`). Au
 `trt-llm-explore` for Ken-specific assumptions (paths, `$TRTLLM_HOME`, host wiring) and file the
 generalization work. _Exit: a written contract + a chosen, recorded integration strategy._
 
-**Sprint 6 — Publish-ready packaging.**
+**Sprint 6 — Resident-model default + swap strategy decision.**
+`ChatTrtLlm()` adopts the currently-loaded model; the published swap story is decided in
+[ADR 0002](decisions/0002-model-swap-strategy.md) (error-well default + optional local restart;
+server-side swap documented as future). _Done — see
+[`sprints/sprint-06-resident-default.md`](../sprints/sprint-06-resident-default.md)._
+
+**Sprint 7 — Publish-ready packaging.**
 De-Ken-ify config (env/`base_url`/`control_url` overrides, no hard-coded hosts), polished README
 with a copy-paste quickstart, `LICENSE`, classifiers/keywords in `pyproject.toml`, CI
 (lint + unit tests), and a tagged release / PyPI dry-run. Generalize + publish the backend per the

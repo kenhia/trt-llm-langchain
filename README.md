@@ -19,6 +19,13 @@ It subclasses `langchain_openai.ChatOpenAI` (so you inherit `invoke`/`stream`/`b
 `bind_tools`, `with_structured_output`) and adds a small manager that makes the requested model
 **resident before the first call**.
 
+Or adopt whatever model is already loaded — `ChatTrtLlm()` with no `model` uses the resident
+model (errors if zero or more than one is loaded) and never triggers a swap:
+
+```python
+chat = ChatTrtLlm()   # talk to whatever's currently loaded
+```
+
 ## How it works
 
 `trt-llm-langchain` is a thin **client** — it does not run models itself. It talks to two HTTP
@@ -86,6 +93,12 @@ ChatTrtLlm(model="llama-3_1-8b-fp16").invoke("hi")        # restart → load lla
 
 Without `TRTLLM_RESTART_CMD`, a swap raises `BackendRestartRequiredError` with guidance instead of
 failing with a raw CUDA OOM. (See `trt-llm-explore` sprint 006 / WI #91 for the full rationale.)
+
+`TRTLLM_RESTART_CMD` is **co-located only** — it runs a local command, so it can't restart a
+*remote* backend. If you run the client on a different machine than the GPU host, either load the
+target model server-side (then use `ChatTrtLlm()` / `ensure`), or use one model per process.
+A future optional backend swap endpoint would make this seamless — see
+[ADR 0002](docs/decisions/0002-model-swap-strategy.md).
 
 ## Control-plane CLI
 

@@ -35,7 +35,9 @@ class ChatTrtLlm(ChatOpenAI):
     """Chat model for a local TensorRT-LLM backend, with lazy load/unload.
 
     Args:
-        model: Backend model key (the OpenAI ``id``), e.g. ``"qwen2_5-coder-7b-fp16"``.
+        model: Backend model key (the OpenAI ``id``), e.g. ``"qwen2_5-coder-7b-fp16"``. If omitted,
+            adopts the **currently resident** model (errors if zero or >1 are loaded); this never
+            triggers a swap.
         settings: Connection settings. Defaults to :meth:`TrtLlmSettings.from_env`.
         eager_load: If True, load the model during construction instead of lazily on first call.
         manager: Pre-built manager (injection seam for tests); defaults to one from ``settings``.
@@ -48,7 +50,7 @@ class ChatTrtLlm(ChatOpenAI):
 
     def __init__(
         self,
-        model: str,
+        model: str | None = None,
         *,
         settings: TrtLlmSettings | None = None,
         eager_load: bool = False,
@@ -56,19 +58,22 @@ class ChatTrtLlm(ChatOpenAI):
         **kwargs: Any,
     ) -> None:
         resolved = settings or TrtLlmSettings.from_env()
+        mgr = manager or TrtLlmManager(resolved)
+        # No model given: adopt whatever is loaded (raises ResidentModelError if 0 or >1).
+        model_key = model if model is not None else mgr.resident_model()
         kwargs.setdefault("stream_usage", True)
         super().__init__(
-            model=model,
+            model=model_key,
             base_url=f"{resolved.chat_url}/v1",
             api_key=resolved.api_key,
             **kwargs,
         )
         self._settings = resolved
-        self._manager = manager or TrtLlmManager(resolved)
-        self._manager.validate(model)  # raises ModelNotFoundError if unknown
+        self._manager = mgr
+        self._manager.validate(model_key)  # raises ModelNotFoundError if unknown
         self._ensured = False
         if eager_load:
-            self._manager.ensure_loaded(model)
+            self._manager.ensure_loaded(model_key)
             self._ensured = True
 
     @property
